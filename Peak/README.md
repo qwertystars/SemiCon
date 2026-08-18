@@ -1,48 +1,60 @@
-# Peak — KLA Image Restoration Submission
+# Peak — KLA Blind Compound Image Restoration
 
-This submission restores every grayscale `.npy` image found in the input directory and its subdirectories. Outputs retain the same relative path and filename, use `float32`, contain finite values in `[0, 1]`, and have twice the input height and width.
+Peak restores grayscale `.npy` inputs affected by unknown-order 2× downsampling, Gaussian noise, and multiplicative speckle noise. The submission preserves out-of-range measurements until the final output step.
 
-## Folder structure
+## Submission structure
 
 ```text
 Peak/
 ├── run.py
 ├── requirements.txt
 ├── README.md
-├── models/
-│   └── kla_renaf_sr_x2.pt
-└── src/
+└── models/
+    ├── peak_range_conditioned_naf_sr_x2.pt
+    └── supporting model files
 ```
 
-## Requirements
+## Method
 
-- Python 3.10 or newer
-- NVIDIA GPU with a CUDA-compatible driver
-- CUDA 12.4-compatible PyTorch environment
-- No internet connection is required at runtime
+The Range-Aware Degradation-Conditioned NAFNet-SR model uses four input views: raw intensity, clipped intensity, negative overflow, and positive overflow. A lightweight degradation encoder produces a latent condition and estimated Gaussian/speckle scales. Conditional NAF blocks use the latent condition to adapt restoration behavior, while a bicubic skip and PixelShuffle residual head generate the 2× output.
 
-Install the pinned dependencies before moving the submission to the offline evaluation environment:
+Training uses official pairs plus arbitrary-order synthetic Gaussian, speckle, and downsampling operations. The objective combines Charbonnier, SSIM, gradient, frequency, heteroscedastic forward-consistency, and valid-range penalties. LPIPS is excluded from the runtime dependency path so inference never downloads external weights.
+
+Analysis of 800 official pairs found BOX/area to be the lowest-error candidate downsampler for 773 images, with fitted noise scales near `sigma_g=0.0348` and `sigma_s=0.1642`. The in-distribution synthetic branch is centered on those measurements; a separate hard-OOD branch retains wider strengths and kernels.
+
+## Install
+
+Use Python 3.10+ and an NVIDIA CUDA-compatible GPU:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-## Run
+No internet connection, API key, additional download, interaction, or manual configuration is required at runtime.
 
-From inside the `Peak` directory:
+## Required execution interface
 
 ```bash
 python run.py <input-dir> <output-dir>
 ```
 
-Example:
+The script recursively reads every `.npy` input, creates the output directory, preserves relative filenames, and writes one finite `float32` grayscale array per input. Outputs have shape `(2H, 2W)` and values clipped to `[0,1]`.
+
+## Development training
+
+Training utilities live inside `models/` to preserve the required top-level submission structure. With the dataset located at `../datasets/KLA`:
 
 ```bash
-python run.py /data/test/NoisyLR /data/test/restored
+python models/analyze_data.py --data-dir ../datasets/KLA
+python models/smoke_test.py
+python models/train.py
+python models/evaluate.py
 ```
 
-The output directory is created automatically. The program processes only `.npy` files and accepts grayscale arrays shaped `(H, W)` or `(H, W, 1)`.
+The best validation checkpoint is written directly to `models/peak_range_conditioned_naf_sr_x2.pt`. Training artifacts are written outside the submission folder under `../artifacts/kla_training`.
 
-## Included model
+After inference, the exact file, shape, range, and finite-value contract can be checked with:
 
-`models/kla_renaf_sr_x2.pt` must be the trained RangeAwareNAFSR checkpoint. It must contain a `model` state dictionary and a `model_config` dictionary. The checkpoint is loaded locally and the program never downloads weights or contacts an external service.
+```bash
+python models/validate_outputs.py <input-dir> <output-dir>
+```

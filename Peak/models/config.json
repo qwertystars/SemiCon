@@ -1,0 +1,20 @@
+{
+  "seed": 42,
+  "epochs": 160,
+  "batch_size": 4,
+  "gradient_accumulation": 2,
+  "ema_decay": 0.999,
+  "workers": 2,
+  "learning_rate": 0.0002,
+  "minimum_learning_rate": 0.000001,
+  "weight_decay": 0.0001,
+  "validation_fraction": 0.1,
+  "synthetic_probability": 0.35,
+  "model": {
+    "scale": 2,
+    "width": 32,
+    "blocks": 8,
+    "embedding_dim": 64,
+    "dilations": [1, 2, 3]
+  }
+}

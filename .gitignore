@@ -1,0 +1,6 @@
+*.zip
+**/__pycache__/
+*.py[cod]
+datasets/
+artifacts/
+.venv/
